@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug de Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-lg">
+        <h1 class="text-2xl font-bold text-center mb-4">Prueba de Acceso de Administrador</h1>
+        <p class="text-gray-600 text-center mb-6">Ingresa "admin" y una contraseña para probar la conexión con el backend.</p>
+        
+        <div class="space-y-4 mb-6">
+            <input type="text" id="user" value="admin" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+            <input type="password" id="pass" placeholder="Escribe una contraseña de prueba" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+        </div>
+
+        <button id="test-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition">
+            Probar Inicio de Sesión
+        </button>
+
+        <div class="mt-6">
+            <h2 class="font-semibold">Respuesta del Servidor:</h2>
+            <pre id="result" class="bg-gray-800 text-white text-sm p-4 rounded-lg mt-2 overflow-x-auto whitespace-pre-wrap">Esperando prueba...</pre>
+        </div>
+    </div>
+
+    <script>
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzUcAI6dPlCisl_CIU1HKjHF4pz-9PQbYfjypbvIXWLSU_Sc4I_XUzrX-31jgWJrO6gXw/exec';
+        const testBtn = document.getElementById('test-btn');
+        const resultBox = document.getElementById('result');
+        const userInput = document.getElementById('user');
+        const passInput = document.getElementById('pass');
+
+        async function hashPassword(password) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        testBtn.addEventListener('click', async () => {
+            resultBox.textContent = 'Probando...';
+            testBtn.disabled = true;
+            testBtn.textContent = 'Cargando...';
+
+            const user = userInput.value.trim();
+            const pass = passInput.value.trim();
+
+            if (!user || !pass) {
+                resultBox.textContent = "Por favor, ingresa usuario y contraseña.";
+                testBtn.disabled = false;
+                testBtn.textContent = 'Probar Inicio de Sesión';
+                return;
+            }
+
+            const passwordHash = await hashPassword(pass);
+
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    redirect: 'follow',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ 
+                        action: 'verificarAccesoMaestro', 
+                        usuario: user, 
+                        passwordHash: passwordHash 
+                    })
+                });
+                
+                // Leemos la respuesta como texto para capturar tanto JSON como errores HTML
+                const rawResponse = await response.text();
+                
+                // Intentamos formatear si es JSON, si no, mostramos el texto crudo
+                try {
+                    const json = JSON.parse(rawResponse);
+                    resultBox.textContent = JSON.stringify(json, null, 2);
+                } catch (e) {
+                    resultBox.textContent = "Respuesta no es JSON (¡esto es probablemente el error!):\n\n" + rawResponse;
+                }
+
+            } catch (error) {
+                resultBox.textContent = `Error de Conexión (Failed to fetch):\n\n${error.toString()}`;
+            } finally {
+                testBtn.disabled = false;
+                testBtn.textContent = 'Probar Inicio de Sesión';
+            }
+        });
+    </script>
+</body>
+</html>
